@@ -18,3 +18,7 @@ Chrome extension: select text, click the bubble, read the translation in a small
 2. **Load unpacked** → select this folder
 
 Uses Google Translate's free public endpoint (unofficial, no API key).
+
+## Why?
+
+I wasn't happy with the official Google Translate extension
