@@ -2,8 +2,7 @@
 
 Chrome extension: select text, click the bubble, read the translation in a small glass card next to it.
 
-![Light](screenshots/light.png)
-![Dark](screenshots/dark.png)
+![Demo](screenshots/demo.webp)
 
 - No length limit (long text is split and translated in chunks)
 - Keeps line breaks, paragraphs and emoji (incl. image emoji on Slack, X, Discord)
