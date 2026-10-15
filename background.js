@@ -72,17 +72,12 @@ chrome.runtime.onInstalled.addListener(async () => {
   });
 });
 
-// Toolbar icon click toggles glass mode (content scripts pick it up via storage.onChanged).
+// Settings live only in the right-click menu: a left-click toggle was too easy to hit by accident
+// (e.g. clicking the extension's row in Chrome's puzzle menu while pinning it).
 async function showGlassState() {
   const { glass } = await chrome.storage.sync.get({ glass: true });
-  chrome.action.setTitle({ title: `Translate Popup: glass ${glass ? 'ON' : 'OFF'} (click to toggle, right-click for theme)` });
   chrome.contextMenus.update('glass', { checked: glass }, () => void chrome.runtime.lastError);
 }
-chrome.action.onClicked.addListener(async () => {
-  const { glass } = await chrome.storage.sync.get({ glass: true });
-  await chrome.storage.sync.set({ glass: !glass });
-  showGlassState();
-});
 chrome.runtime.onStartup.addListener(showGlassState);
 chrome.runtime.onInstalled.addListener(showGlassState);
 

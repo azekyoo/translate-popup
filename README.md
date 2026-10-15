@@ -8,8 +8,9 @@ Chrome extension: select text, click the bubble, read the translation in a small
 - Keeps line breaks, paragraphs and emoji (incl. image emoji on Slack, X, Discord)
 - Auto-detects source; if already in target language, translates to EN/JA instead
 - `Alt+T` or right-click → *Translate selection*
-- Light/dark theme follows the system, or force it: right-click the toolbar icon
-- Glass effect on/off: click the toolbar icon (or right-click menu)
+- Light/dark theme follows the system, or force it
+- Glass effect on/off
+- Settings: right-click the toolbar icon
 
 ## Install
 
