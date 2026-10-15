@@ -57,14 +57,26 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true; // keep channel open for async reply
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({ id: 'tp', title: 'Translate selection', contexts: ['selection'] });
+const THEMES = { system: 'Theme: System', light: 'Theme: Light', dark: 'Theme: Dark' };
+
+// Page menu: translate selection. Toolbar icon right-click menu: theme + glass settings.
+chrome.runtime.onInstalled.addListener(async () => {
+  const { glass, theme } = await chrome.storage.sync.get({ glass: true, theme: 'system' });
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'tp', title: 'Translate selection', contexts: ['selection'] });
+    for (const [id, title] of Object.entries(THEMES)) {
+      chrome.contextMenus.create({ id: 'theme-' + id, title, type: 'radio', checked: theme === id, contexts: ['action'] });
+    }
+    chrome.contextMenus.create({ id: 'sep', type: 'separator', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'glass', title: 'Glass effect', type: 'checkbox', checked: glass, contexts: ['action'] });
+  });
 });
 
 // Toolbar icon click toggles glass mode (content scripts pick it up via storage.onChanged).
 async function showGlassState() {
   const { glass } = await chrome.storage.sync.get({ glass: true });
-  chrome.action.setTitle({ title: `Translate Popup: glass ${glass ? 'ON' : 'OFF'} (click to toggle)` });
+  chrome.action.setTitle({ title: `Translate Popup: glass ${glass ? 'ON' : 'OFF'} (click to toggle, right-click for theme)` });
+  chrome.contextMenus.update('glass', { checked: glass }, () => void chrome.runtime.lastError);
 }
 chrome.action.onClicked.addListener(async () => {
   const { glass } = await chrome.storage.sync.get({ glass: true });
@@ -75,6 +87,8 @@ chrome.runtime.onStartup.addListener(showGlassState);
 chrome.runtime.onInstalled.addListener(showGlassState);
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId.startsWith('theme-')) return void chrome.storage.sync.set({ theme: info.menuItemId.slice(6) });
+  if (info.menuItemId === 'glass') return void chrome.storage.sync.set({ glass: info.checked }).then(showGlassState);
   chrome.tabs.sendMessage(tab.id, { type: 'show', text: info.selectionText }, { frameId: info.frameId })
     .catch(() => {});
 });

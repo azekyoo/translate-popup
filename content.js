@@ -22,6 +22,11 @@
   const host = document.createElement('div');
   host.style.cssText = 'all:initial;position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;';
   const root = host.attachShadow({ mode: 'closed' });
+  // Dark palette applies when the system is dark (unless forced light) or when forced dark.
+  const DARK = `
+      --bg:#1f2026; --fg:#ececf1; --muted:#9a9cab; --line:rgba(255,255,255,.08); --soft:#2a2b33;
+      --accent:#9b9cff; --accent-soft:rgba(155,156,255,.14); --shadow:0 12px 32px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
+      --glass:rgba(32,33,40,.6); --glass-line:rgba(255,255,255,.12); --glass-soft:rgba(255,255,255,.08);`;
   root.innerHTML = `
 <style>
   :host {
@@ -31,11 +36,10 @@
     --accent:#5b5cff; --accent-soft:rgba(91,92,255,.1); --shadow:0 12px 32px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.08);
   }
   @media (prefers-color-scheme: dark) {
-    :host {
-      --bg:#1f2026; --fg:#ececf1; --muted:#9a9cab; --line:rgba(255,255,255,.08); --soft:#2a2b33;
-      --accent:#9b9cff; --accent-soft:rgba(155,156,255,.14); --shadow:0 12px 32px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
-      --glass:rgba(32,33,40,.6); --glass-line:rgba(255,255,255,.12); --glass-soft:rgba(255,255,255,.08);
+    :host(:not([data-theme="light"])) {${DARK}
     }
+  }
+  :host([data-theme="dark"]) {${DARK}
   }
   * {
     box-sizing: border-box;
@@ -130,8 +134,14 @@
   for (const [code, name] of Object.entries(LANGS)) lang.add(new Option(name, code));
 
   const applyGlass = () => panel.classList.toggle('glass', glass);
-  chrome.storage.sync.get({ target: 'en', glass: true }, (v) => { target = v.target; glass = v.glass; applyGlass(); });
-  chrome.storage.onChanged.addListener((c) => { if (c.glass) { glass = c.glass.newValue; applyGlass(); } });
+  const applyTheme = (theme) => { if (theme === 'system') delete host.dataset.theme; else host.dataset.theme = theme; };
+  chrome.storage.sync.get({ target: 'en', glass: true, theme: 'system' }, (v) => {
+    target = v.target; glass = v.glass; applyGlass(); applyTheme(v.theme);
+  });
+  chrome.storage.onChanged.addListener((c) => {
+    if (c.glass) { glass = c.glass.newValue; applyGlass(); }
+    if (c.theme) applyTheme(c.theme.newValue);
+  });
 
   let pending = null;   // { text, x, y } waiting for button click
   let current = null;   // { text, x, y } shown in panel
@@ -144,7 +154,10 @@
 
   // Translation starts on selection (before the bubble is clicked) and is reused on click.
   let cache = { key: null, promise: null };
+  // After the extension is reloaded, scripts already in open tabs are cut off and chrome.* calls throw.
+  const alive = () => !!chrome.runtime?.id;
   function request(text, tl) {
+    if (!alive()) return Promise.resolve({ ok: false, error: 'Extension was reloaded, refresh this page.' });
     const key = tl + '\u0000' + text;
     if (cache.key !== key) cache = { key, promise: chrome.runtime.sendMessage({ type: 'translate', text, tl }) };
     return cache.promise;
@@ -278,6 +291,7 @@
 
   document.addEventListener('mouseup', (e) => {
     if (e.button !== 0 || fromUs(e)) return;
+    if (!alive()) { host.remove(); return; } // orphaned copy: stay silent, the fresh one takes over on refresh
     setTimeout(() => {          // let the browser finalize the selection first
       const s = readSelection();
       if (!s) return hideBtn();
@@ -305,7 +319,7 @@
 
   lang.addEventListener('change', () => {
     target = lang.value;
-    chrome.storage.sync.set({ target });
+    if (alive()) chrome.storage.sync.set({ target });
     run();
   });
 
