@@ -142,6 +142,14 @@
   const hideBtn = () => { btn.hidden = true; pending = null; };
   const hidePanel = () => { panel.hidden = true; current = null; reqId++; };
 
+  // Translation starts on selection (before the bubble is clicked) and is reused on click.
+  let cache = { key: null, promise: null };
+  function request(text, tl) {
+    const key = tl + '\u0000' + text;
+    if (cache.key !== key) cache = { key, promise: chrome.runtime.sendMessage({ type: 'translate', text, tl }) };
+    return cache.promise;
+  }
+
   // <img> emoji -> real emoji. Alt is the emoji itself on X/Discord, but a shortcode (":v:") on Slack,
   // where the image file name holds the codepoints instead (".../1f31e@2x.png").
   function emojiOf(img) {
@@ -154,12 +162,38 @@
     return alt; // custom workspace emoji: keep the shortcode
   }
 
+  // Elements in the range the user can't actually select (Slack reactions, reply counts) or can't see
+  // (hover-only labels). Selection.toString() skips them, a cloned copy doesn't, so we tag them to drop later.
+  function unselectableIn(range) {
+    let root = range.commonAncestorContainer;
+    if (root.nodeType !== Node.ELEMENT_NODE) root = root.parentElement;
+    const found = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode(el) {
+        if (!range.intersectsNode(el)) return NodeFilter.FILTER_REJECT;
+        const cs = getComputedStyle(el);
+        if ((cs.userSelect || cs.webkitUserSelect) === 'none' || cs.display === 'none' || cs.visibility === 'hidden') {
+          found.push(el);
+          return NodeFilter.FILTER_REJECT; // whole subtree goes, no need to look inside
+        }
+        return NodeFilter.FILTER_SKIP;
+      },
+    });
+    while (walker.nextNode());
+    return found;
+  }
+
   // Selection.toString() drops <img> emoji and Slack's paragraph gaps, so rebuild the text when either is present.
   function selectionText(sel) {
-    const frag = sel.getRangeAt(0).cloneContents();
+    const range = sel.getRangeAt(0);
+    if (!range.cloneContents().querySelector('img[alt], [data-stringify-type="paragraph-break"]')) return sel.toString();
+    const skip = unselectableIn(range);
+    skip.forEach((el) => el.setAttribute('data-tp-skip', ''));
+    let frag;
+    try { frag = range.cloneContents(); } finally { skip.forEach((el) => el.removeAttribute('data-tp-skip')); }
+    frag.querySelectorAll('[data-tp-skip]').forEach((el) => el.remove());
     const imgs = frag.querySelectorAll('img[alt]');
     const gaps = frag.querySelectorAll('[data-stringify-type="paragraph-break"]');
-    if (!imgs.length && !gaps.length) return sel.toString();
     imgs.forEach((img) => img.replaceWith(emojiOf(img)));
     gaps.forEach((g) => g.replaceWith(document.createElement('br'), document.createElement('br')));
     // innerText needs the nodes rendered to keep line breaks, so render them off-screen briefly.
@@ -208,10 +242,11 @@
     lang.value = target;
     let res;
     try {
-      res = await chrome.runtime.sendMessage({ type: 'translate', text: current.text, tl: target });
+      res = await request(current.text, target);
     } catch (e) {
       res = { ok: false, error: 'Extension was reloaded, refresh this page.' };
     }
+    if (!res?.ok) cache = { key: null, promise: null }; // don't reuse a failure on retry
     if (id !== reqId) return; // a newer request or close happened meanwhile
     if (!res?.ok) {
       out.className = 'err';
@@ -248,6 +283,7 @@
       if (!s) return hideBtn();
       mount();
       pending = { text: s.text, x: e.clientX, y: e.clientY };
+      request(s.text, target).catch(() => {}); // prefetch while the user moves to the bubble
       btn.style.left = Math.min(e.clientX + 8, document.documentElement.clientWidth - 38) + 'px';
       btn.style.top = Math.min(e.clientY + 8, window.innerHeight - 38) + 'px';
       btn.hidden = false;
