@@ -7,7 +7,7 @@ Translate Popup is a browser extension that translates text you select on a web 
 ## What data is handled
 
 - **Text you select.** When you select text, it is sent to Google Translate
-  (`translate.googleapis.com`) to get the translation. Nothing else from the page is sent.
+  (`translate.googleapis.com`, or `translate-pa.googleapis.com` when the first is unavailable) to get the translation. Nothing else from the page is sent.
 - **Your settings.** Target language, theme and glass effect are saved with Chrome's `storage.sync`,
   so they follow your Chrome profile. They never leave Chrome's own sync.
 

@@ -30,8 +30,10 @@ To get notified of new versions: **Watch → Custom → Releases** on this repo.
 
 ## Notes
 
-Uses Google Translate's free public endpoint (unofficial, no API key). Google sometimes blocks a whole network for
-a few minutes (HTTP 429). The popup then shows **Verify with Google**: pass the check once and translation resumes.
+Uses Google Translate's free public endpoint (unofficial, no API key). Google sometimes blocks it for a whole network
+for a few minutes (HTTP 429); translation then switches automatically to Google's `translate-pa` API (the one
+Simple Translate uses), which isn't affected. Line breaks may be slightly less exact during that time. If both fail,
+the popup shows **Verify with Google**.
 
 ## Why?
 

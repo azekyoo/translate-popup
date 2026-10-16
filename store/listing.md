@@ -54,7 +54,7 @@ Open source: https://github.com/azekyoo/translate-popup
 | `contextMenus` | Adds "Translate selection" to the page right-click menu, and the theme/glass settings to the toolbar icon's right-click menu. |
 | `scripting` | Injects the popup script into tabs that were already open when the browser started or the extension was updated, so they work without a page reload. |
 | Host permission `<all_urls>` | The popup must work on any page the user reads, and the script has to be injectable into those already-open tabs. |
-| Host permission `translate.googleapis.com` | Sends the selected text to Google Translate to get the translation. |
+| Host permissions `translate.googleapis.com`, `translate-pa.googleapis.com` | Send the selected text to Google Translate to get the translation (the second is a fallback when the first is temporarily unavailable). |
 
 **Remote code:** No, I am not using remote code.
 

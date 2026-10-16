@@ -250,7 +250,8 @@
     panel.style.top = top + 'px';
   }
 
-  async function run() {
+  // afterVerify: this is the retry right after the user passed Google's check page.
+  async function run(afterVerify = false) {
     if (!current) return;
     const id = ++reqId;
     out.className = '';
@@ -268,7 +269,10 @@
     if (!res?.ok) {
       out.className = 'err';
       out.textContent = 'Error: ' + (res?.error || 'no response');
-      if (res?.verify) {
+      if (res?.verify && afterVerify) {
+        // Harder block: Google ignores the pass it just gave, so offering the check again would loop.
+        out.textContent = 'Google is still blocking your network, even after the check. Please wait a few minutes and try again.';
+      } else if (res?.verify) {
         const a = document.createElement('a');
         a.href = res.verify;
         a.target = '_blank';
@@ -368,7 +372,7 @@
   // From context menu or Alt+T. Frames without a selection ignore it.
   chrome.runtime.onMessage.addListener((msg) => {
     // Back from Google's check page: retry if this frame's popup is still showing the error.
-    if (msg.type === 'retry') return void (!panel.hidden && out.className === 'err' && run());
+    if (msg.type === 'retry') return void (!panel.hidden && out.className === 'err' && run(true));
     if (msg.type !== 'show') return;
     const s = readSelection();
     const text = s?.text || msg.text;

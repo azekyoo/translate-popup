@@ -1,10 +1,18 @@
-// Google's free "gtx" endpoint (same one Simple Translate uses). POST so long text isn't capped by URL length.
-const ENDPOINT = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=';
+// Primary: Google's keyless "gtx" endpoint. Translates line by line, so line breaks and blank lines stay exact.
+// Google sometimes blocks it for a whole network IP (HTTP 429).
+const GTX_ENDPOINT = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=';
+// Fallback during those blocks: translate-pa with the public key Google's own web clients use (Simple Translate's
+// main endpoint). Quota is per key, not per IP, so the block doesn't reach it. It reflows line breaks a bit,
+// hence fallback only. GET only: text goes in the URL.
+const PA_ENDPOINT = 'https://translate-pa.googleapis.com/v1/translate';
+const PA_KEY = 'AIzaSyDLEeFI5OtFBwYBIoK_jj5m32rZK5CkCXA';
+const GTX_COOLDOWN = 10 * 60 * 1000; // after a block, skip gtx for this long instead of hitting it on every request
 // Opening this in a tab during a block lands on Google's "unusual traffic" check page; passing it sets a cookie
 // that lifts the block for this browser. No query: a real translation would come back as a .json download.
 const VERIFY_URL = 'https://translate.googleapis.com/translate_a/single';
-const CHUNK = 1800;     // chars per request, stays well under the endpoint's limit
+const CHUNK = 1500;     // chars per request: worst case (all CJK) ~13.5 KB of URL, under translate-pa's limit
 const PARALLEL = 4;     // concurrent requests for very long selections
+const CACHE_MAX = 200;  // recent chunk translations kept, so re-selecting the same text costs no request
 
 // Split on newlines, then sentence ends, then hard-cut, so each chunk <= CHUNK and formatting survives.
 function split(text) {
@@ -25,8 +33,19 @@ function split(text) {
   return chunks;
 }
 
-async function translateChunk(q, tl) {
-  const res = await fetch(ENDPOINT + encodeURIComponent(tl), {
+async function viaPa(q, tl) {
+  const params = new URLSearchParams([
+    ['params.client', 'gtx'], ['query.source_language', 'auto'], ['query.target_language', tl],
+    ['query.display_language', tl], ['query.text', q], ['key', PA_KEY], ['data_types', 'TRANSLATION'],
+  ]);
+  const res = await fetch(`${PA_ENDPOINT}?${params}`);
+  if (!res.ok) throw new Error(`translate-pa returned HTTP ${res.status}`);
+  const data = await res.json();
+  return { text: data.translation ?? '', src: data.sourceLanguage };
+}
+
+async function viaGtx(q, tl) {
+  const res = await fetch(GTX_ENDPOINT + encodeURIComponent(tl), {
     method: 'POST',
     body: new URLSearchParams({ q }),
     credentials: 'include', // carries Google's pass cookie once the user has solved its check page
@@ -41,6 +60,37 @@ async function translateChunk(q, tl) {
   if (!res.ok) throw new Error(`Google returned HTTP ${res.status}`);
   const data = await res.json();
   return { text: (data[0] || []).map((s) => s[0]).join(''), src: data[2] };
+}
+
+const cache = new Map(); // tl + chunk -> result, oldest first
+let gtxBlockedUntil = 0;
+
+async function translateChunk(q, tl) {
+  const key = tl + '\u0000' + q;
+  if (cache.has(key)) return cache.get(key);
+  if (!q.trim()) return { text: q, src: undefined }; // blank lines: nothing to translate
+  let r;
+  try {
+    if (Date.now() < gtxBlockedUntil) throw Object.assign(new Error('gtx cooling down'), { blocked: true });
+    r = await viaGtx(q, tl);
+  } catch (e) {
+    if (e.blocked && Date.now() >= gtxBlockedUntil) gtxBlockedUntil = Date.now() + GTX_COOLDOWN;
+    try {
+      r = await viaPa(q, tl);
+    } catch {
+      if (e.message === 'gtx cooling down') r = await viaGtx(q, tl); // fallback broke too: retry gtx for real
+      else throw e; // both failed: show gtx's error (it carries the Verify with Google link)
+    }
+    // translate-pa trims edge whitespace, but chunks often end in "\n": put it back so chunks join cleanly.
+    // It also inserts blank lines between sentences: drop them when the source had none.
+    const lead = q.match(/^\s*/)[0], trail = q.slice(lead.length).match(/\s*$/)[0];
+    let text = r.text.trim();
+    if (!/\n[ \t]*\n/.test(q)) text = text.replace(/\n[ \t]*\n+/g, '\n');
+    r = { ...r, text: lead + text + trail };
+  }
+  cache.set(key, r);
+  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+  return r;
 }
 
 async function translateAll(text, tl) {
