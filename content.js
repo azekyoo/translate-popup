@@ -1,6 +1,9 @@
 (() => {
-  if (window.__translatePopup) return;
-  window.__translatePopup = true;
+  // Background also injects into open tabs on startup/reload, so skip if a live copy already runs here.
+  // A copy orphaned by an extension reload doesn't count: its captured runtime loses its id.
+  if (window.__translatePopup?.()) return;
+  const rt = chrome.runtime;
+  window.__translatePopup = () => { try { return !!rt.id; } catch { return false; } };
 
   const LANGS = {
     en: 'English', ja: '日本語', fr: 'Français', 'zh-CN': '中文 (简)', 'zh-TW': '中文 (繁)', ko: '한국어',

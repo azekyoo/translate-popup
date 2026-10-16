@@ -57,6 +57,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true; // keep channel open for async reply
 });
 
+// Tabs restored at browser startup can load before the extension and miss the manifest injection,
+// and tabs open during a reload keep only a dead copy. Inject into them so no refresh is needed.
+async function injectOpenTabs() {
+  for (const tab of await chrome.tabs.query({})) {
+    if (tab.discarded) continue; // sleeping tab: gets the script normally when it wakes up
+    chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ['content.js'] })
+      .catch(() => {}); // chrome://, Web Store, etc. refuse injection
+  }
+}
+chrome.runtime.onStartup.addListener(injectOpenTabs);
+chrome.runtime.onInstalled.addListener(injectOpenTabs);
+
 const THEMES = { system: 'Theme: System', light: 'Theme: Light', dark: 'Theme: Dark' };
 
 // Page menu: translate selection. Toolbar icon right-click menu: theme + glass settings.
