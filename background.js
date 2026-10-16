@@ -63,7 +63,12 @@ async function viaGtx(q, tl) {
 }
 
 const cache = new Map(); // tl + chunk -> result, oldest first
-let gtxBlockedUntil = 0;
+// Mirrored in session storage: Chrome stops this service worker after ~30 s idle, which would reset the cooldown.
+let gtxBlockedUntil = null;
+async function gtxCooldownEnd() {
+  if (gtxBlockedUntil === null) gtxBlockedUntil = (await chrome.storage.session.get('gtxBlockedUntil')).gtxBlockedUntil ?? 0;
+  return gtxBlockedUntil;
+}
 
 async function translateChunk(q, tl) {
   const key = tl + '\u0000' + q;
@@ -71,10 +76,13 @@ async function translateChunk(q, tl) {
   if (!q.trim()) return { text: q, src: undefined }; // blank lines: nothing to translate
   let r;
   try {
-    if (Date.now() < gtxBlockedUntil) throw Object.assign(new Error('gtx cooling down'), { blocked: true });
+    if (Date.now() < await gtxCooldownEnd()) throw Object.assign(new Error('gtx cooling down'), { blocked: true });
     r = await viaGtx(q, tl);
   } catch (e) {
-    if (e.blocked && Date.now() >= gtxBlockedUntil) gtxBlockedUntil = Date.now() + GTX_COOLDOWN;
+    if (e.blocked && Date.now() >= gtxBlockedUntil) {
+      gtxBlockedUntil = Date.now() + GTX_COOLDOWN;
+      chrome.storage.session.set({ gtxBlockedUntil });
+    }
     try {
       r = await viaPa(q, tl);
     } catch {
