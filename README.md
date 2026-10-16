@@ -14,10 +14,24 @@ Chrome extension: select text, click the bubble, read the translation in a small
 
 ## Install
 
-1. `chrome://extensions` → enable **Developer mode**
-2. **Load unpacked** → select this folder
+1. Download the zip from the [latest release](https://github.com/azekyoo/translate-popup/releases/latest) and unzip it somewhere permanent
+   (or `git clone` this repo)
+2. `chrome://extensions` → enable **Developer mode**
+3. **Load unpacked** → select the `translate-popup` folder
 
-Uses Google Translate's free public endpoint (unofficial, no API key).
+## Update
+
+- **Zip:** unzip the new release into the *same* folder (replace the files). A new folder installs it as a separate extension and resets settings.
+- **Git:** `git pull`
+
+Then click **Reload** on the extension card. Open tabs pick up the new version without a refresh.
+
+To get notified of new versions: **Watch → Custom → Releases** on this repo.
+
+## Notes
+
+Uses Google Translate's free public endpoint (unofficial, no API key). Google sometimes blocks a whole network for
+a few minutes (HTTP 429). The popup then shows **Verify with Google**: pass the check once and translation resumes.
 
 ## Why?
 
