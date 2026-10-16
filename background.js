@@ -27,6 +27,10 @@ async function translateChunk(q, tl) {
     method: 'POST',
     body: new URLSearchParams({ q }),
   });
+  // 429 (and 500 alongside it) = Google's anti-bot block on the whole network IP. It lifts by itself in minutes.
+  if (res.status === 429 || res.status === 500) {
+    throw new Error(`Google is temporarily blocking translations from your network. Try again in a few minutes. (HTTP ${res.status})`);
+  }
   if (!res.ok) throw new Error(`Google returned HTTP ${res.status}`);
   const data = await res.json();
   return { text: (data[0] || []).map((s) => s[0]).join(''), src: data[2] };
