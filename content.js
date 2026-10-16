@@ -105,6 +105,7 @@
   #panel.glass header { border-bottom-color: var(--glass-line); }
   #panel.glass #src, #panel.glass .icon:hover { background: var(--glass-soft); }
   #out.err { color: #e5484d; font-size: 13px; }
+  #out.err a { color: var(--accent); font-weight: 600; }
   .skeleton { display: grid; gap: 8px; padding: 2px 0; }
   .skeleton i {
     display: block; height: 10px; border-radius: 5px;
@@ -267,6 +268,18 @@
     if (!res?.ok) {
       out.className = 'err';
       out.textContent = 'Error: ' + (res?.error || 'no response');
+      if (res?.verify) {
+        const a = document.createElement('a');
+        a.href = res.verify;
+        a.target = '_blank';
+        a.textContent = 'Verify with Google';
+        // Background opens the check tab so it can close it afterwards and tell us to retry.
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (alive()) chrome.runtime.sendMessage({ type: 'verify' }).catch(() => {});
+        });
+        out.append(document.createElement('br'), a);
+      }
       src.textContent = '?';
     } else {
       // Blank lines -> paragraphs with a small gap (like the source), single newlines stay tight.
@@ -354,6 +367,8 @@
 
   // From context menu or Alt+T. Frames without a selection ignore it.
   chrome.runtime.onMessage.addListener((msg) => {
+    // Back from Google's check page: retry if this frame's popup is still showing the error.
+    if (msg.type === 'retry') return void (!panel.hidden && out.className === 'err' && run());
     if (msg.type !== 'show') return;
     const s = readSelection();
     const text = s?.text || msg.text;

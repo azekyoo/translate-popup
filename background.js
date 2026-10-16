@@ -1,5 +1,8 @@
 // Google's free "gtx" endpoint (same one Simple Translate uses). POST so long text isn't capped by URL length.
 const ENDPOINT = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=';
+// Opening this in a tab during a block lands on Google's "unusual traffic" check page; passing it sets a cookie
+// that lifts the block for this browser. No query: a real translation would come back as a .json download.
+const VERIFY_URL = 'https://translate.googleapis.com/translate_a/single';
 const CHUNK = 1800;     // chars per request, stays well under the endpoint's limit
 const PARALLEL = 4;     // concurrent requests for very long selections
 
@@ -26,10 +29,14 @@ async function translateChunk(q, tl) {
   const res = await fetch(ENDPOINT + encodeURIComponent(tl), {
     method: 'POST',
     body: new URLSearchParams({ q }),
+    credentials: 'include', // carries Google's pass cookie once the user has solved its check page
   });
-  // 429 (and 500 alongside it) = Google's anti-bot block on the whole network IP. It lifts by itself in minutes.
+  // 429 (and 500 alongside it) = Google's anti-bot block on the whole network IP. It lifts by itself in minutes,
+  // or right away once the user passes Google's check page (see VERIFY_URL).
   if (res.status === 429 || res.status === 500) {
-    throw new Error(`Google is temporarily blocking translations from your network. Try again in a few minutes. (HTTP ${res.status})`);
+    const err = new Error(`Google is temporarily blocking translations from your network. Try again in a few minutes. (HTTP ${res.status})`);
+    err.blocked = true;
+    throw err;
   }
   if (!res.ok) throw new Error(`Google returned HTTP ${res.status}`);
   const data = await res.json();
@@ -53,11 +60,34 @@ async function translate(text, tl) {
   return r;
 }
 
+// Verify tab -> tab that asked, kept in session storage because the service worker may sleep during the check.
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type !== 'verify' || !sender.tab) return;
+  chrome.tabs.create({ url: VERIFY_URL, openerTabId: sender.tab.id })
+    .then((t) => chrome.storage.session.set({ ['verify' + t.id]: sender.tab.id }));
+});
+
+// Back on translate.googleapis.com = check passed (or there was no block): the page itself is useless, close it.
+chrome.tabs.onUpdated.addListener(async (id, info, tab) => {
+  if (info.status !== 'complete' || !tab.url?.startsWith('https://translate.googleapis.com/')) return;
+  if ((await chrome.storage.session.get('verify' + id))['verify' + id] !== undefined) chrome.tabs.remove(id);
+});
+
+// Verify tab gone (closed by us or the user): return to the page and let its popup retry.
+chrome.tabs.onRemoved.addListener(async (id) => {
+  const key = 'verify' + id;
+  const from = (await chrome.storage.session.get(key))[key];
+  if (from === undefined) return;
+  chrome.storage.session.remove(key);
+  chrome.tabs.update(from, { active: true }).catch(() => {});
+  chrome.tabs.sendMessage(from, { type: 'retry' }).catch(() => {});
+});
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== 'translate') return;
   translate(msg.text, msg.tl)
     .then((r) => sendResponse({ ok: true, ...r }))
-    .catch((e) => sendResponse({ ok: false, error: String(e.message || e) }));
+    .catch((e) => sendResponse({ ok: false, error: String(e.message || e), verify: e.blocked ? VERIFY_URL : undefined }));
   return true; // keep channel open for async reply
 });
 
