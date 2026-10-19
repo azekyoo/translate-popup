@@ -5,6 +5,8 @@ const GTX_ENDPOINT = 'https://translate.googleapis.com/translate_a/single?client
 // main endpoint). Quota is per key, not per IP, so the block doesn't reach it. It reflows line breaks a bit,
 // hence fallback only. GET only: text goes in the URL.
 const PA_ENDPOINT = 'https://translate-pa.googleapis.com/v1/translate';
+// Publicly distributed Google Translate client key used with translate-pa.googleapis.com; not a credential for our GCP project.
+// Controlled by Google and may stop working without notice.
 const PA_KEY = 'AIzaSyDLEeFI5OtFBwYBIoK_jj5m32rZK5CkCXA';
 const GTX_COOLDOWN = 10 * 60 * 1000; // after a block, skip gtx for this long instead of hitting it on every request
 // Opening this in a tab during a block lands on Google's "unusual traffic" check page; passing it sets a cookie
