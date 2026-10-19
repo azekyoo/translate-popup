@@ -14,19 +14,21 @@ Chrome extension: select text, click the bubble, read the translation in a small
 
 ## Install
 
+**[Get it on the Chrome Web Store](https://chromewebstore.google.com/detail/translate-popup/kbmaganhckffnmjjhhpbggmeahfdldmd)**: updates install automatically.
+
+<details>
+<summary>Manual install (unpacked)</summary>
+
 1. Download the zip from the [latest release](https://github.com/azekyoo/translate-popup/releases/latest) and unzip it somewhere permanent
    (or `git clone` this repo)
 2. `chrome://extensions` → enable **Developer mode**
 3. **Load unpacked** → select the `translate-popup` folder
 
-## Update
+To update: unzip the new release into the *same* folder (a new folder installs it as a separate extension and resets
+settings), or `git pull`, then click **Reload** on the extension card. Watch → Custom → Releases on this repo to get
+notified. If you switch to the store version, remove the unpacked one first so both don't run at once.
 
-- **Zip:** unzip the new release into the *same* folder (replace the files). A new folder installs it as a separate extension and resets settings.
-- **Git:** `git pull`
-
-Then click **Reload** on the extension card. Open tabs pick up the new version without a refresh.
-
-To get notified of new versions: **Watch → Custom → Releases** on this repo.
+</details>
 
 ## Notes
 
