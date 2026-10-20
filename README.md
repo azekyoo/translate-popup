@@ -12,7 +12,8 @@ Chrome extension: select text, click the bubble, read the translation in a small
 - `Alt+T` or right-click → *Translate selection*
 - Light/dark theme follows the system, or force it
 - Glass effect on/off
-- Settings: right-click the toolbar icon
+- Pin the card so it stays open while you click around the page
+- Settings: buttons on the card, or right-click the toolbar icon
 
 ## Install
 
@@ -61,7 +62,8 @@ Chrome 拡張機能：テキストを選択してバブルをクリックする�
 - `Alt+T` または右クリック →「*Translate selection*」
 - ライト／ダークテーマはシステム設定に連動（固定も可能）
 - ガラス効果のオン／オフ
-- 設定：ツールバーのアイコンを右クリック
+- カードをピン留めすると、ページをクリックしても閉じません
+- 設定：カードのボタン、またはツールバーのアイコンを右クリック
 
 ## インストール
 

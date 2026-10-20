@@ -22,7 +22,8 @@ Select text on any page, click the small bubble, and the translation appears in 
 • Auto-detects the source language; text already in your target language is translated to English/Japanese instead
 • Alt+T shortcut, or right-click → Translate selection
 • Light and dark theme (follows the system or forced), optional glass effect
-• Settings: right-click the toolbar icon
+• Pin the card so it stays open while you click around the page
+• Settings: buttons right on the card, or right-click the toolbar icon
 
 Uses Google Translate. If Google temporarily blocks your network, the card shows "Verify with Google": pass the check once and translation resumes.
 
