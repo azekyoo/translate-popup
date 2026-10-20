@@ -9,6 +9,8 @@
     en: 'English', ja: '日本語', fr: 'Français', 'zh-CN': '中文 (简)', 'zh-TW': '中文 (繁)', ko: '한국어',
     es: 'Español', de: 'Deutsch', it: 'Italiano', pt: 'Português', ru: 'Русский', vi: 'Tiếng Việt',
   };
+  // Chrome maps the manifest's Alt+T to Option+T on Mac, where the key is labelled ⌥.
+  const SHORTCUT = /Mac/.test(navigator.platform) ? '⌥T' : 'Alt+T';
   let target = 'en';
   let glass = true;
   let theme = 'system';
@@ -191,7 +193,7 @@
   @keyframes shimmer { to { background-position: -200% 0; } }
   @keyframes tip { from { transform: translateY(-2px); opacity: 0; } }
 </style>
-<button id="btn" data-tip="Translate" data-key="Alt+T">${LOGO}</button>
+<button id="btn" data-tip="Translate" data-key="${SHORTCUT}">${LOGO}</button>
 <div id="panel" hidden>
   <header>
     <span class="logo">${LOGO}</span>

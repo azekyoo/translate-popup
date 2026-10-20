@@ -185,6 +185,13 @@ async function showGlassState() {
   chrome.contextMenus.update('glass', { checked: glass }, () => void chrome.runtime.lastError);
 }
 chrome.runtime.onStartup.addListener(showGlassState);
+// The manifest's toolbar title says Alt+T; Mac keyboards call that key Option (⌥).
+async function showMacShortcut() {
+  if ((await chrome.runtime.getPlatformInfo()).os !== 'mac') return;
+  chrome.action.setTitle({ title: 'Translate Popup (select text, then ⌥T). Right-click for settings' });
+}
+chrome.runtime.onStartup.addListener(showMacShortcut);
+chrome.runtime.onInstalled.addListener(showMacShortcut);
 chrome.runtime.onInstalled.addListener(showGlassState);
 // The popup card has its own glass and theme toggles, so keep the menu in step with them.
 chrome.storage.onChanged.addListener((c) => {
