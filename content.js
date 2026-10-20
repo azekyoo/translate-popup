@@ -322,6 +322,7 @@
   let pending = null;   // { text, x, y } waiting for button click
   let current = null;   // { text, x, y } shown in panel
   let reqId = 0;
+  let copyText = '';   // last translation as Google returned it (the <p> split would lose blank lines)
 
   const mount = () => { if (!host.isConnected) document.documentElement.appendChild(host); };
   const fromUs = (e) => e.composedPath().includes(host);
@@ -426,6 +427,7 @@
   async function run(afterVerify = false) {
     if (!current) return;
     const id = ++reqId;
+    copyText = '';
     out.className = '';
     out.innerHTML = '<div class="skeleton"><i></i><i></i><i></i></div>';
     src.textContent = '…';
@@ -459,6 +461,7 @@
       src.textContent = '?';
     } else {
       // Blank lines -> paragraphs with a small gap (like the source), single newlines stay tight.
+      copyText = res.text;
       out.replaceChildren(...res.text.split(/\n[ \t]*\n+/).map((para) => {
         const p = document.createElement('p');
         p.textContent = para;
@@ -559,14 +562,28 @@
     if (alive()) chrome.storage.sync.set({ glass });
   });
 
-  copy.addEventListener('click', async () => {
+  async function writeClipboard(text) {
     try {
-      await navigator.clipboard.writeText(out.textContent);
-      copy.innerHTML = ICON_DONE;
-      setTip(copy, 'Copied');
-      copy.classList.add('done');
-      setTimeout(() => { copy.innerHTML = ICON_COPY; copy.classList.remove('done'); setTip(copy, 'Copy translation'); }, 1200);
-    } catch { /* clipboard blocked on this page */ }
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // The async API is missing on http pages and blocked in iframes or by a page's Permissions-Policy.
+      // The old copy command still works from a click, so copy through a hidden textarea instead.
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    root.append(ta);
+    ta.select();
+    try { return document.execCommand('copy'); } catch { return false; } finally { ta.remove(); copy.focus(); }
+  }
+
+  copy.addEventListener('click', async () => {
+    if (!copyText || !(await writeClipboard(copyText))) return; // still loading, error shown, or copy refused
+    copy.innerHTML = ICON_DONE;
+    setTip(copy, 'Copied');
+    copy.classList.add('done');
+    setTimeout(() => { copy.innerHTML = ICON_COPY; copy.classList.remove('done'); setTip(copy, 'Copy translation'); }, 1200);
   });
 
   $('close').addEventListener('click', hidePanel);
