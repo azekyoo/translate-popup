@@ -11,6 +11,8 @@
   };
   let target = 'en';
   let glass = true;
+  let theme = 'system';
+  let pinned = false; // per card, not saved: a pin is for the reply you're writing now
 
   const LOGO = `<svg viewBox="0 0 128 128" aria-hidden="true">
     <path d="M28 18h46a12 12 0 0 1 12 12v32a12 12 0 0 1-12 12H40l-14 12v-12a12 12 0 0 1-10-12V30a12 12 0 0 1 12-12z" fill="#fff" fill-opacity=".28"/>
@@ -23,6 +25,14 @@
   const ICON_GLASS = '<svg viewBox="0 0 24 24"><path d="M12 3.5c3 3.6 6 6.9 6 10.2a6 6 0 0 1-12 0c0-3.3 3-6.6 6-10.2z"/><path d="M9.2 14.2a2.9 2.9 0 0 0 2.4 2.7"/></svg>';
   const ICON_CHEVRON = '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>';
   const ICON_CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const ICON_PIN = '<svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v5"/></svg>';
+  const THEME_ICONS = {
+    system: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+    light: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
+    dark: '<svg viewBox="0 0 24 24"><path d="M19.5 14.5A7.5 7.5 0 1 1 9.5 4.5a6 6 0 0 0 10 10z"/></svg>',
+  };
+  const THEME_NEXT = { system: 'light', light: 'dark', dark: 'system' };
+  const THEME_NAMES = { system: 'System', light: 'Light', dark: 'Dark' };
 
   // Shadow DOM so page CSS can't break the popup and ours can't leak into the page.
   const host = document.createElement('div');
@@ -121,6 +131,24 @@
   #menu button[aria-selected="true"] { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
   #menu button[aria-selected="true"] .code { color: var(--accent); }
   #menu button[aria-selected="true"] svg { visibility: visible; }
+
+  /* Tooltips: our own, since native title tooltips are OS-styled. */
+  #tip {
+    position: fixed; padding: 5px 9px; white-space: nowrap; pointer-events: none;
+    font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: var(--shadow); animation: tip .12s ease-out;
+  }
+  #tip.glass {
+    background: var(--glass); border-color: var(--glass-line);
+    backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--glass-line);
+  }
+  #tip kbd {
+    margin-left: 6px; padding: 1px 5px; border-radius: 4px; font: inherit; font-size: 10.5px; font-weight: 600;
+    color: var(--muted); background: var(--soft);
+  }
+  #tip.glass kbd { background: var(--glass-soft); }
   .spacer { flex: 1; }
   .icon {
     width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px;
@@ -129,7 +157,8 @@
   .icon:hover { background: var(--soft); color: var(--fg); }
   .icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   #copy.done { color: #16a34a; }
-  #glass[aria-pressed="true"] { color: var(--accent); }
+  #glass[aria-pressed="true"], #pin[aria-pressed="true"] { color: var(--accent); }
+  #pin[aria-pressed="true"] svg { fill: currentColor; }
 
   #out {
     padding: 12px 14px 14px; overflow: auto; font-size: 15px; line-height: 1.45;
@@ -160,28 +189,72 @@
   @keyframes pop { from { transform: scale(.6); opacity: 0; } }
   @keyframes rise { from { transform: translateY(4px); opacity: 0; } }
   @keyframes shimmer { to { background-position: -200% 0; } }
+  @keyframes tip { from { transform: translateY(-2px); opacity: 0; } }
 </style>
-<button id="btn" title="Translate (Alt+T)">${LOGO}</button>
+<button id="btn" data-tip="Translate" data-key="Alt+T">${LOGO}</button>
 <div id="panel" hidden>
   <header>
     <span class="logo">${LOGO}</span>
     <span id="src">…</span>
     <span class="arrow">→</span>
-    <button id="lang" title="Target language" aria-haspopup="listbox" aria-expanded="false"><span></span>${ICON_CHEVRON}</button>
+    <button id="lang" data-tip="Target language" aria-haspopup="listbox" aria-expanded="false"><span></span>${ICON_CHEVRON}</button>
     <span class="spacer"></span>
+    <button id="theme" class="icon"></button>
     <button id="glass" class="icon" aria-pressed="true">${ICON_GLASS}</button>
-    <button id="copy" class="icon" title="Copy translation">${ICON_COPY}</button>
-    <button id="close" class="icon" title="Close (Esc)">${ICON_CLOSE}</button>
+    <button id="pin" class="icon" aria-pressed="false">${ICON_PIN}</button>
+    <button id="copy" class="icon" data-tip="Copy translation">${ICON_COPY}</button>
+    <button id="close" class="icon" data-tip="Close" data-key="Esc">${ICON_CLOSE}</button>
   </header>
   <div id="out"></div>
 </div>
-<div id="menu" role="listbox" hidden></div>`;
+<div id="menu" role="listbox" hidden></div>
+<div id="tip" role="tooltip" hidden></div>`;
   // #menu sits outside #panel: the panel's backdrop-filter would make it the containing block of a
   // fixed child, and its overflow:hidden would clip the list on short translations.
 
   const $ = (id) => root.getElementById(id);
   const btn = $('btn'), panel = $('panel'), out = $('out'), src = $('src'), lang = $('lang'), copy = $('copy');
-  const menu = $('menu'), glassBtn = $('glass');
+  const menu = $('menu'), glassBtn = $('glass'), themeBtn = $('theme'), pinBtn = $('pin'), tip = $('tip');
+
+  // Tooltip text lives in data-tip (data-key adds a shortcut chip). Shown after a short hover delay,
+  // below the button or above it near the bottom edge. Like #menu, it sits outside #panel.
+  let tipFor = null, tipTimer = 0, tipHiddenAt = 0;
+  function showTip(el) {
+    tipFor = el;
+    tip.textContent = el.dataset.tip;
+    if (el.dataset.key) tip.append(Object.assign(document.createElement('kbd'), { textContent: el.dataset.key }));
+    tip.hidden = false;
+    const r = el.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 8;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(m, Math.min(r.left + r.width / 2 - w / 2, vw - w - m)) + 'px';
+    tip.style.top = (r.bottom + 6 + h <= vh - m ? r.bottom + 6 : r.top - 6 - h) + 'px';
+  }
+  const hideTip = () => {
+    clearTimeout(tipTimer);
+    if (!tip.hidden) tipHiddenAt = Date.now();
+    tipFor = null;
+    tip.hidden = true;
+  };
+  // Updates a visible tip in place, so toggles show their new state right under the cursor.
+  const setTip = (el, text) => {
+    el.dataset.tip = text;
+    el.ariaLabel = text;
+    if (tipFor === el && !tip.hidden) showTip(el);
+  };
+  root.querySelectorAll('[data-tip]').forEach((el) => { el.ariaLabel = el.dataset.tip; });
+  root.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el === tipFor) return;
+    hideTip();
+    if (!el || !menu.hidden) return;
+    tipFor = el;
+    // Gliding straight from one button to the next shows its tip at once, like native tooltips.
+    tipTimer = setTimeout(() => showTip(el), Date.now() - tipHiddenAt < 300 ? 0 : 650);
+  });
+  root.addEventListener('mouseout', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el && !el.contains(e.relatedTarget)) hideTip();
+  });
   for (const [code, name] of Object.entries(LANGS)) {
     const item = document.createElement('button');
     item.role = 'option';
@@ -203,6 +276,7 @@
     if (refocus) lang.focus();
   };
   function openMenu() {
+    hideTip();
     menu.hidden = false;
     lang.ariaExpanded = 'true';
     // Below the picker if it fits, else above it, kept inside the viewport.
@@ -219,9 +293,22 @@
     panel.classList.toggle('glass', glass);
     menu.classList.toggle('glass', glass);
     glassBtn.ariaPressed = String(glass);
-    glassBtn.title = `Liquid glass: ${glass ? 'on' : 'off'}`;
+    tip.classList.toggle('glass', glass);
+    setTip(glassBtn, `Liquid glass: ${glass ? 'on' : 'off'}`);
   };
-  const applyTheme = (theme) => { if (theme === 'system') delete host.dataset.theme; else host.dataset.theme = theme; };
+  const applyTheme = (t) => {
+    theme = THEME_NAMES[t] ? t : 'system';
+    if (theme === 'system') delete host.dataset.theme; else host.dataset.theme = theme;
+    themeBtn.innerHTML = THEME_ICONS[theme];
+    setTip(themeBtn, `Theme: ${THEME_NAMES[theme]} (click for ${THEME_NAMES[THEME_NEXT[theme]]})`);
+  };
+  const setPinned = (on) => {
+    pinned = on;
+    pinBtn.ariaPressed = String(on);
+    setTip(pinBtn, on ? 'Unpin (closes on page click again)' : 'Pin: keep open when clicking the page');
+  };
+  // Fill the toggle buttons' state and tips before storage answers.
+  applyTheme(theme); applyGlass(); setPinned(false);
   chrome.storage.sync.get({ target: 'en', glass: true, theme: 'system' }, (v) => {
     target = v.target; glass = v.glass; applyGlass(); applyTheme(v.theme);
   });
@@ -236,8 +323,8 @@
 
   const mount = () => { if (!host.isConnected) document.documentElement.appendChild(host); };
   const fromUs = (e) => e.composedPath().includes(host);
-  const hideBtn = () => { btn.hidden = true; pending = null; };
-  const hidePanel = () => { closeMenu(); panel.hidden = true; current = null; reqId++; };
+  const hideBtn = () => { if (tipFor === btn) hideTip(); btn.hidden = true; pending = null; };
+  const hidePanel = () => { closeMenu(); hideTip(); setPinned(false); panel.hidden = true; current = null; reqId++; };
 
   // Translation starts on selection (before the bubble is clicked) and is reused on click.
   let cache = { key: null, promise: null };
@@ -386,9 +473,12 @@
     mount();
     hideBtn();
     current = p;
-    delete panel.dataset.dragged;
-    panel.hidden = false;
-    place(p.x, p.y);
+    // A pinned card stays where it is and just shows the new translation.
+    if (!(pinned && !panel.hidden)) {
+      delete panel.dataset.dragged;
+      panel.hidden = false;
+      place(p.x, p.y);
+    }
     run();
   }
 
@@ -410,14 +500,14 @@
   document.addEventListener('mousedown', (e) => {
     if (fromUs(e)) return;
     hideBtn();
-    hidePanel();
+    if (pinned) closeMenu(); else hidePanel();
   }, true);
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!menu.hidden) return closeMenu(true); // first Esc only closes the language list
     hideBtn();
-    hidePanel();
+    if (!pinned) hidePanel(); // pages use Esc too (Slack closes threads), so only × closes a pinned card
   }, true);
 
   btn.addEventListener('mousedown', (e) => e.preventDefault()); // don't clear the page selection
@@ -451,6 +541,16 @@
     if (!menu.hidden && !e.composedPath().some((el) => el === menu || el === lang)) closeMenu();
   });
 
+  pinBtn.addEventListener('click', () => {
+    setPinned(!pinned);
+    if (pinned) panel.dataset.dragged = '1'; // stop re-placing it next to each new selection
+  });
+
+  themeBtn.addEventListener('click', () => {
+    applyTheme(THEME_NEXT[theme]);
+    if (alive()) chrome.storage.sync.set({ theme });
+  });
+
   glassBtn.addEventListener('click', () => {
     glass = !glass;
     applyGlass();
@@ -461,8 +561,9 @@
     try {
       await navigator.clipboard.writeText(out.textContent);
       copy.innerHTML = ICON_DONE;
+      setTip(copy, 'Copied');
       copy.classList.add('done');
-      setTimeout(() => { copy.innerHTML = ICON_COPY; copy.classList.remove('done'); }, 1200);
+      setTimeout(() => { copy.innerHTML = ICON_COPY; copy.classList.remove('done'); setTip(copy, 'Copy translation'); }, 1200);
     } catch { /* clipboard blocked on this page */ }
   });
 
@@ -473,6 +574,7 @@
     if (e.target.closest('button')) return;
     e.preventDefault();
     closeMenu(); // it's positioned off the picker and wouldn't follow the drag
+    hideTip();
     const r = panel.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
     const move = (ev) => {
       panel.dataset.dragged = '1';
