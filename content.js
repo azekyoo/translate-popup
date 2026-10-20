@@ -20,6 +20,9 @@
   const ICON_COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
   const ICON_DONE = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const ICON_GLASS = '<svg viewBox="0 0 24 24"><path d="M12 3.5c3 3.6 6 6.9 6 10.2a6 6 0 0 1-12 0c0-3.3 3-6.6 6-10.2z"/><path d="M9.2 14.2a2.9 2.9 0 0 0 2.4 2.7"/></svg>';
+  const ICON_CHEVRON = '<svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>';
+  const ICON_CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
   // Shadow DOM so page CSS can't break the popup and ours can't leak into the page.
   const host = document.createElement('div');
@@ -76,10 +79,48 @@
   }
   .arrow { color: var(--muted); font-size: 12px; }
   #lang {
+    display: inline-flex; align-items: center; gap: 2px; height: 24px;
     font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft);
-    border: 0; border-radius: 6px; padding: 4px 6px; cursor: pointer; outline: none;
+    border: 0; border-radius: 6px; padding: 0 4px 0 8px; cursor: pointer; outline: none; transition: filter .12s;
   }
-  #lang option { color: var(--fg); background: var(--bg); }
+  #lang:hover, #lang[aria-expanded="true"] { filter: brightness(.96) saturate(1.2); }
+  #lang:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+  #lang svg {
+    width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;
+    stroke-linecap: round; stroke-linejoin: round; transition: transform .15s;
+  }
+  #lang[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+  /* Language list: our own menu (a native <select> popup ignores page styling and looks like the OS). */
+  #menu {
+    position: fixed; width: 184px; max-height: min(320px, 60vh); overflow: auto; padding: 4px;
+    display: flex; flex-direction: column; gap: 1px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 11px;
+    box-shadow: var(--shadow); animation: rise .12s ease-out;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  #menu.glass {
+    background: var(--glass); border-color: var(--glass-line);
+    backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--glass-line);
+  }
+  #menu button {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--fg); font-size: 13px; text-align: left; cursor: pointer; outline: none;
+  }
+  #menu button:hover, #menu button:focus-visible { background: var(--soft); }
+  #menu.glass button:hover, #menu.glass button:focus-visible { background: var(--glass-soft); }
+  #menu button .code {
+    min-width: 34px; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--muted);
+  }
+  #menu button .name { flex: 1; }
+  #menu button svg {
+    width: 14px; height: 14px; fill: none; stroke: var(--accent); stroke-width: 2.4;
+    stroke-linecap: round; stroke-linejoin: round; visibility: hidden;
+  }
+  #menu button[aria-selected="true"] { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+  #menu button[aria-selected="true"] .code { color: var(--accent); }
+  #menu button[aria-selected="true"] svg { visibility: visible; }
   .spacer { flex: 1; }
   .icon {
     width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px;
@@ -88,6 +129,7 @@
   .icon:hover { background: var(--soft); color: var(--fg); }
   .icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   #copy.done { color: #16a34a; }
+  #glass[aria-pressed="true"] { color: var(--accent); }
 
   #out {
     padding: 12px 14px 14px; overflow: auto; font-size: 15px; line-height: 1.45;
@@ -96,7 +138,7 @@
   #out p { margin: 0; white-space: pre-wrap; }
   #out p + p { margin-top: .7em; }
 
-  /* Glass mode (toggle: click the extension's toolbar icon). */
+  /* Glass mode (toggle: droplet button on the card, or the toolbar icon's right-click menu). */
   #panel.glass {
     background: var(--glass); border-color: var(--glass-line);
     backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%);
@@ -125,19 +167,60 @@
     <span class="logo">${LOGO}</span>
     <span id="src">…</span>
     <span class="arrow">→</span>
-    <select id="lang" title="Target language"></select>
+    <button id="lang" title="Target language" aria-haspopup="listbox" aria-expanded="false"><span></span>${ICON_CHEVRON}</button>
     <span class="spacer"></span>
+    <button id="glass" class="icon" aria-pressed="true">${ICON_GLASS}</button>
     <button id="copy" class="icon" title="Copy translation">${ICON_COPY}</button>
     <button id="close" class="icon" title="Close (Esc)">${ICON_CLOSE}</button>
   </header>
   <div id="out"></div>
-</div>`;
+</div>
+<div id="menu" role="listbox" hidden></div>`;
+  // #menu sits outside #panel: the panel's backdrop-filter would make it the containing block of a
+  // fixed child, and its overflow:hidden would clip the list on short translations.
 
   const $ = (id) => root.getElementById(id);
   const btn = $('btn'), panel = $('panel'), out = $('out'), src = $('src'), lang = $('lang'), copy = $('copy');
-  for (const [code, name] of Object.entries(LANGS)) lang.add(new Option(name, code));
+  const menu = $('menu'), glassBtn = $('glass');
+  for (const [code, name] of Object.entries(LANGS)) {
+    const item = document.createElement('button');
+    item.role = 'option';
+    item.dataset.code = code;
+    item.innerHTML = `<span class="code">${code.toUpperCase()}</span><span class="name"></span>${ICON_CHECK}`;
+    item.querySelector('.name').textContent = name;
+    menu.append(item);
+  }
 
-  const applyGlass = () => panel.classList.toggle('glass', glass);
+  // Shows a language on the picker without changing the saved target.
+  const showLang = (code) => {
+    lang.firstChild.textContent = LANGS[code] || code;
+    for (const item of menu.children) item.ariaSelected = String(item.dataset.code === code);
+  };
+  const closeMenu = (refocus) => {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    lang.ariaExpanded = 'false';
+    if (refocus) lang.focus();
+  };
+  function openMenu() {
+    menu.hidden = false;
+    lang.ariaExpanded = 'true';
+    // Below the picker if it fits, else above it, kept inside the viewport.
+    const r = lang.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 8;
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.max(m, Math.min(r.left, vw - w - m)) + 'px';
+    menu.style.top = (r.bottom + 6 + h <= vh - m ? r.bottom + 6 : Math.max(m, r.top - 6 - h)) + 'px';
+    const sel = menu.querySelector('[aria-selected="true"]') || menu.firstChild;
+    sel.scrollIntoView({ block: 'nearest' });
+    sel.focus();
+  }
+
+  const applyGlass = () => {
+    panel.classList.toggle('glass', glass);
+    menu.classList.toggle('glass', glass);
+    glassBtn.ariaPressed = String(glass);
+    glassBtn.title = `Liquid glass: ${glass ? 'on' : 'off'}`;
+  };
   const applyTheme = (theme) => { if (theme === 'system') delete host.dataset.theme; else host.dataset.theme = theme; };
   chrome.storage.sync.get({ target: 'en', glass: true, theme: 'system' }, (v) => {
     target = v.target; glass = v.glass; applyGlass(); applyTheme(v.theme);
@@ -154,7 +237,7 @@
   const mount = () => { if (!host.isConnected) document.documentElement.appendChild(host); };
   const fromUs = (e) => e.composedPath().includes(host);
   const hideBtn = () => { btn.hidden = true; pending = null; };
-  const hidePanel = () => { panel.hidden = true; current = null; reqId++; };
+  const hidePanel = () => { closeMenu(); panel.hidden = true; current = null; reqId++; };
 
   // Translation starts on selection (before the bubble is clicked) and is reused on click.
   let cache = { key: null, promise: null };
@@ -257,7 +340,7 @@
     out.className = '';
     out.innerHTML = '<div class="skeleton"><i></i><i></i><i></i></div>';
     src.textContent = '…';
-    lang.value = target;
+    showLang(target);
     let res;
     try {
       res = await request(current.text, target);
@@ -293,7 +376,7 @@
         return p;
       }));
       src.textContent = String(res.src).toUpperCase();
-      if (res.tl !== target) lang.value = res.tl;
+      if (res.tl !== target) showLang(res.tl);
     }
     out.scrollTop = 0;
     if (!panel.dataset.dragged) place(current.x, current.y);
@@ -331,16 +414,47 @@
   }, true);
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { hideBtn(); hidePanel(); }
+    if (e.key !== 'Escape') return;
+    if (!menu.hidden) return closeMenu(true); // first Esc only closes the language list
+    hideBtn();
+    hidePanel();
   }, true);
 
   btn.addEventListener('mousedown', (e) => e.preventDefault()); // don't clear the page selection
   btn.addEventListener('click', () => pending && open(pending));
 
-  lang.addEventListener('change', () => {
-    target = lang.value;
+  lang.addEventListener('click', () => (menu.hidden ? openMenu() : closeMenu()));
+  lang.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openMenu(); }
+  });
+
+  menu.addEventListener('click', (e) => {
+    const item = e.target.closest('button');
+    if (!item) return;
+    closeMenu(true);
+    if (item.dataset.code === target) return;
+    target = item.dataset.code;
     if (alive()) chrome.storage.sync.set({ target });
     run();
+  });
+  menu.addEventListener('keydown', (e) => {
+    const items = [...menu.children], i = items.indexOf(root.activeElement);
+    const go = (n) => { e.preventDefault(); items[(n + items.length) % items.length].focus(); };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(-1);
+    else if (e.key === 'Tab') closeMenu();
+  });
+  // Clicks elsewhere in the popup close the list (page clicks already close everything).
+  root.addEventListener('mousedown', (e) => {
+    if (!menu.hidden && !e.composedPath().some((el) => el === menu || el === lang)) closeMenu();
+  });
+
+  glassBtn.addEventListener('click', () => {
+    glass = !glass;
+    applyGlass();
+    if (alive()) chrome.storage.sync.set({ glass });
   });
 
   copy.addEventListener('click', async () => {
@@ -356,8 +470,9 @@
 
   // Drag the panel by its header.
   panel.querySelector('header').addEventListener('mousedown', (e) => {
-    if (e.target.closest('select,button')) return;
+    if (e.target.closest('button')) return;
     e.preventDefault();
+    closeMenu(); // it's positioned off the picker and wouldn't follow the drag
     const r = panel.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
     const move = (ev) => {
       panel.dataset.dragged = '1';

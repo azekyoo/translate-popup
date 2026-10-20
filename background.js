@@ -186,10 +186,12 @@ async function showGlassState() {
 }
 chrome.runtime.onStartup.addListener(showGlassState);
 chrome.runtime.onInstalled.addListener(showGlassState);
+// The popup card has its own glass toggle, so keep the menu checkbox in step with it.
+chrome.storage.onChanged.addListener((c) => { if (c.glass) showGlassState(); });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId.startsWith('theme-')) return void chrome.storage.sync.set({ theme: info.menuItemId.slice(6) });
-  if (info.menuItemId === 'glass') return void chrome.storage.sync.set({ glass: info.checked }).then(showGlassState);
+  if (info.menuItemId === 'glass') return void chrome.storage.sync.set({ glass: info.checked });
   chrome.tabs.sendMessage(tab.id, { type: 'show', text: info.selectionText }, { frameId: info.frameId })
     .catch(() => {});
 });
